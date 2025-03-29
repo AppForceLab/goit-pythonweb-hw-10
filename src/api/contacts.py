@@ -1,75 +1,61 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status, Path
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from typing import List
 
 from src.database.db import get_db
-from src.schemas.contacts import ContactCreate, ContactResponse, ContactUpdate
-from src.repository import contacts as repo_contacts
-from typing import List, Optional
+from src.database.models import Contact, User
+from src.schemas.contacts import ContactCreate, ContactUpdate, ContactResponse
+from src.services.auth import get_current_user
 
-router = APIRouter(prefix="/api/v1/contacts", tags=["contacts"])
-
-
-@router.post("/", response_model=ContactResponse)
-async def create(contact: ContactCreate, db: AsyncSession = Depends(get_db)):
-    return await repo_contacts.create_contact(contact, db)
-
+router = APIRouter(prefix="/contacts", tags=["contacts"])
 
 @router.get("/", response_model=List[ContactResponse])
-async def read_contacts(
-    skip: int = 0,
-    limit: int = 10,
-    search: Optional[str] = Query(None),
-    db: AsyncSession = Depends(get_db),
-):
-    return await repo_contacts.get_contacts(skip, limit, search, db)
-
-
-@router.get("/birthdays", response_model=List[ContactResponse])
-async def upcoming_birthdays(db: AsyncSession = Depends(get_db)):
-    return await repo_contacts.get_upcoming_birthdays(db)
-
+async def get_contacts(limit: int = 10, offset: int = 0,
+                       db: Session = Depends(get_db),
+                       current_user: User = Depends(get_current_user)):
+    contacts = db.query(Contact).filter(Contact.user_id == current_user.id).offset(offset).limit(limit).all()
+    return contacts
 
 @router.get("/{contact_id}", response_model=ContactResponse)
-async def read_contact(
-    contact_id: int = Path(ge=1), db: AsyncSession = Depends(get_db)
-):
-    contact = await repo_contacts.get_contact(contact_id, db)
-    if not contact:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found"
-        )
+async def get_contact(contact_id: int,
+                      db: Session = Depends(get_db),
+                      current_user: User = Depends(get_current_user)):
+    contact = db.query(Contact).filter(Contact.id == contact_id, Contact.user_id == current_user.id).first()
+    if contact is None:
+        raise HTTPException(status_code=404, detail="Contact not found")
     return contact
 
+@router.post("/", response_model=ContactResponse, status_code=status.HTTP_201_CREATED)
+async def create_contact(body: ContactCreate,
+                         db: Session = Depends(get_db),
+                         current_user: User = Depends(get_current_user)):
+    contact = Contact(**body.dict(), user_id=current_user.id)
+    db.add(contact)
+    db.commit()
+    db.refresh(contact)
+    return contact
 
 @router.put("/{contact_id}", response_model=ContactResponse)
-async def update(
-    contact_id: int, contact: ContactUpdate, db: AsyncSession = Depends(get_db)
-):
-    updated_contact = await repo_contacts.update_contact(contact_id, contact, db)
-    if not updated_contact:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found"
-        )
-    return updated_contact
+async def update_contact(contact_id: int,
+                         body: ContactUpdate,
+                         db: Session = Depends(get_db),
+                         current_user: User = Depends(get_current_user)):
+    contact = db.query(Contact).filter(Contact.id == contact_id, Contact.user_id == current_user.id).first()
+    if contact is None:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    for field, value in body.dict().items():
+        setattr(contact, field, value)
+    db.commit()
+    db.refresh(contact)
+    return contact
 
-
-@router.delete("/{contact_id}")
-async def delete(contact_id: int, db: AsyncSession = Depends(get_db)):
-    deleted_contact = await repo_contacts.delete_contact(contact_id, db)
-    if not deleted_contact:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found"
-        )
-    return {"message": "Deleted successfully"}
-
-
-@router.get("/healthcheck")
-async def healthcheck(db: AsyncSession = Depends(get_db)):
-    try:
-        await db.execute(text("SELECT 1"))
-        return {"status": "OK"}
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
-        )
+@router.delete("/{contact_id}", response_model=ContactResponse)
+async def delete_contact(contact_id: int,
+                         db: Session = Depends(get_db),
+                         current_user: User = Depends(get_current_user)):
+    contact = db.query(Contact).filter(Contact.id == contact_id, Contact.user_id == current_user.id).first()
+    if contact is None:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    db.delete(contact)
+    db.commit()
+    return contact

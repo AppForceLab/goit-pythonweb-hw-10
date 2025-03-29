@@ -17,6 +17,16 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
 
+    mail_username: str
+    mail_password: str
+    mail_server: str
+    mail_port: int
+    mail_from: str
+
+    cloudinary_name: str
+    cloudinary_api_key: str
+    cloudinary_api_secret: str
+
     @property
     def database_url(self):
         return f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
