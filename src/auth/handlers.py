@@ -1,10 +1,12 @@
 from fastapi import Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.auth.hashing import hash_password, verify_password
+from src.auth.jwt_utils import decode_token
 from src.database.db import get_db
 from src.database.models import User
-from src.auth.hashing import hash_password, verify_password
-from src.auth.jwt import create_access_token, create_refresh_token, decode_token
+
 
 async def create_user(username: str, email: str, password: str, db: AsyncSession):
     stmt = select(User).where(User.email == email)
@@ -17,6 +19,7 @@ async def create_user(username: str, email: str, password: str, db: AsyncSession
     await db.refresh(user)
     return user
 
+
 async def authenticate_user(email: str, password: str, db: AsyncSession):
     stmt = select(User).where(User.email == email)
     result = await db.execute(stmt)
@@ -25,7 +28,10 @@ async def authenticate_user(email: str, password: str, db: AsyncSession):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     return user
 
-async def get_current_user(token: str = Depends(...), db: AsyncSession = Depends(get_db)):
+
+async def get_current_user(
+    token: str = Depends(...), db: AsyncSession = Depends(get_db)
+):
     try:
         payload = decode_token(token)
         email = payload.get("sub")

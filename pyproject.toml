@@ -25,10 +25,22 @@ dependencies = [
     "python-dotenv (>=1.1.0,<2.0.0)",
     "slowapi (>=0.1.9,<0.2.0)",
     "cloudinary (>=1.43.0,<2.0.0)",
+    "isort (>=6.0.1,<7.0.0)",
+    "jose (>=1.0.0,<2.0.0)",
 ]
 
 [tool.poetry.dependencies]
 slowapi = { version = "^0.1.9", python = ">=3.7,<4.0" }
+
+[tool.isort]
+profile = "black"
+line_length = 88
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+known_first_party = ["src"]
+
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

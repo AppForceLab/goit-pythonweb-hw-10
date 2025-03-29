@@ -1,6 +1,7 @@
+from uuid import uuid4
+
 import cloudinary
 import cloudinary.uploader
-from uuid import uuid4
 
 from src.conf.config import settings
 

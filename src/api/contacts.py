@@ -1,10 +1,11 @@
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
 
 from src.database.db import get_db
 from src.database.models import Contact, User
-from src.schemas.contacts import ContactCreate, ContactUpdate, ContactResponse
+from src.schemas.contacts import ContactCreate, ContactResponse, ContactUpdate
 from src.services.auth import get_current_user
 
 router = APIRouter(prefix="/contacts", tags=["contacts"])

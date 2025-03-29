@@ -1,6 +1,8 @@
-from pydantic import BaseModel, EmailStr, ConfigDict
 from datetime import date
 from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, EmailStr
+
 
 class ContactBase(BaseModel):
     first_name: str

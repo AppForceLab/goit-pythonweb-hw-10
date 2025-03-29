@@ -1,20 +1,25 @@
 import uuid
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from jose import JWTError
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
 from starlette import status
 from starlette.requests import Request
-from sqlalchemy import select
 
-from main import limiter
+from src.services.limiter import limiter
+from src.auth import handlers
+from src.auth.jwt_utils import (
+    create_token,
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+)
 from src.auth.hashing import pwd_context
 from src.database.db import get_db
 from src.database.models import User
-from src.schemas.users import UserCreate, UserResponse, Token
-from src.auth import handlers, jwt
+from src.schemas.users import Token, UserCreate, UserResponse
 from src.services.auth import get_current_user
 from src.services.cloudinary_service import upload_avatar
 from src.services.email import send_verification_email
@@ -64,8 +69,8 @@ async def login(user: UserCreate, db: AsyncSession = Depends(get_db)):
     valid_user = await handlers.authenticate_user(user.email, user.password, db)
     token_data = {"sub": str(valid_user.email)}
     return {
-        "access_token": jwt.create_access_token(token_data),
-        "refresh_token": jwt.create_refresh_token(token_data),
+        "access_token": create_access_token(token_data),
+        "refresh_token": create_refresh_token(token_data),
     }
 
 
@@ -92,15 +97,15 @@ async def read_me(request: Request, current_user: User = Depends(get_current_use
 
 
 @router.post("/refresh", response_model=Token)
-async def refresh_token(request: Request, db: AsyncSession = Depends(get_db)):
+async def get_refresh_token(request: Request, db: AsyncSession = Depends(get_db)):
     redis = await get_redis()
 
-    rt = request.cookies.get("refresh_token")
+    refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
         raise HTTPException(status_code=401, detail="No refresh token")
 
     try:
-        payload = jwt.decode_token(refresh_token)
+        payload = decode_token(refresh_token)
         email = payload.get("sub")
         stored_token = await redis.get(f"refresh_token:{email}")
         if stored_token != refresh_token:
@@ -109,8 +114,8 @@ async def refresh_token(request: Request, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid token")
 
     token_data = {"sub": email}
-    access_token = jwt.create_access_token(token_data)
-    new_refresh_token = jwt.create_refresh_token(token_data)
+    access_token = create_access_token(token_data)
+    new_refresh_token = create_refresh_token(token_data)
 
     await redis.set(f"refresh_token:{email}", new_refresh_token)
 
